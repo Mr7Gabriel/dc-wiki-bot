@@ -10,7 +10,7 @@ import { got, escapeFormatting, limitLength } from '../util/functions.js';
  * @param {URL} link - The link.
  * @param {String} [spoiler] - If the response is in a spoiler.
  * @param {Boolean} [noEmbed] - If the response should be without an embed.
- * @returns {Promise<{reaction?: String, message?: String|import('discord.js').MessageOptions}>}
+ * @returns {Promise<{reaction?: WB_EMOJI, message?: String|import('discord.js').MessageOptions}>}
  */
 export default function phabricator_task(lang, msg, wiki, link, spoiler = '', noEmbed = false) {
 	var regex = /^(?:https?:)?\/\/phabricator\.(wikimedia|miraheze)\.org\/T(\d+)(?:#|$)/.exec(link.href);
@@ -29,7 +29,7 @@ export default function phabricator_task(lang, msg, wiki, link, spoiler = '', no
 		if ( response.statusCode !== 200 || !body?.result?.data || body.error_code ) {
 			console.log( '- ' + response.statusCode + ': Error while getting the Phabricator task: ' + body?.error_info );
 			return {
-				reaction: 'error',
+				reaction: WB_EMOJI.error,
 				message: spoiler + ( noEmbed ? '<' : ' ' ) + link + ( noEmbed ? '>' : ' ' ) + spoiler
 			};
 		}
@@ -48,12 +48,14 @@ export default function phabricator_task(lang, msg, wiki, link, spoiler = '', no
 			{name: lang.get('phabricator.priority'), value: escapeFormatting(task.fields.priority.name), inline: true}
 		]);
 		if ( task.fields.subtype !== 'default' ) embed.addFields( {name: lang.get('phabricator.subtype'), value: escapeFormatting(task.fields.subtype), inline: true} );
-		var description = parse_text( task.fields.description.raw, site );
-		if ( description.length > 2000 ) description = limitLength(description, 2000, 40);
-		embed.setDescription( description );
+		if ( msg.embedLimits.descLength ) {
+			var description = parse_text( task.fields.description.raw, site );
+			if ( description.length > msg.embedLimits.descLength ) description = limitLength(description, msg.embedLimits.descLength, 40);
+			embed.setDescription( description );
+		}
 
 		return Promise.all([
-			( task.attachments.projects.projectPHIDs.length ? got.get( site + 'api/phid.lookup?api.token=' + process.env['phabricator_' + regex[1]] + '&' + task.attachments.projects.projectPHIDs.map( (project, i) => 'names[' + i + ']=' + project ).join('&'), {
+			( task.attachments.projects.projectPHIDs.length && msg.embedLimits.fieldLength ? got.get( site + 'api/phid.lookup?api.token=' + process.env['phabricator_' + regex[1]] + '&' + task.attachments.projects.projectPHIDs.map( (project, i) => 'names[' + i + ']=' + project ).join('&'), {
 				context: {
 					guildId: msg.guildId
 				}
@@ -67,13 +69,13 @@ export default function phabricator_task(lang, msg, wiki, link, spoiler = '', no
 				var tags = projects.map( project => {
 					return '[' + escapeFormatting(project.fullName) + '](<' + project.uri + '>)';
 				} ).join(',\n');
-				if ( tags.length > 1000 ) tags = projects.map( project => project.fullName ).join(',\n');
-				if ( tags.length > 1000 ) tags = tags.substring(0, 1000) + '\u2026';
+				if ( tags.length > msg.embedLimits.fieldLength ) tags = projects.map( project => project.fullName ).join(',\n');
+				if ( tags.length > msg.embedLimits.fieldLength ) tags = tags.substring(0, msg.embedLimits.fieldLength) + '\u2026';
 				embed.addFields( {name: lang.get('phabricator.tags'), value: tags} );
 			}, error => {
 				console.log( '- Error while getting the projects: ' + error );
 			} ) : undefined ),
-			( /^#\d+$/.test( link.hash ) ? got.get( site + 'api/transaction.search?api.token=' + process.env['phabricator_' + regex[1]] + '&objectIdentifier=' + task.phid, {
+			( /^#\d+$/.test( link.hash ) && msg.embedLimits.sectionLength ? got.get( site + 'api/transaction.search?api.token=' + process.env['phabricator_' + regex[1]] + '&objectIdentifier=' + task.phid, {
 				context: {
 					guildId: msg.guildId
 				}
@@ -86,9 +88,10 @@ export default function phabricator_task(lang, msg, wiki, link, spoiler = '', no
 				var comment = tbody.result.data.find( transaction => '#' + transaction.id === link.hash );
 				if ( comment.type === 'comment' ) {
 					var content = parse_text( comment.comments[0].content.raw, site );
-					if ( content.length > 1000 ) content = limitLength(content, 1000, 20);
+					if ( content.length > msg.embedLimits.sectionLength ) content = limitLength(content, msg.embedLimits.sectionLength, 20);
 					embed.spliceFields( 0, 0, {name: lang.get('phabricator.comment'), value: content} );
-					if ( embed.description.length > 500 ) embed.setDescription( limitLength(description, 500, 250) );
+					if ( !msg.embedLimits.sectionDescLength ) embed.setDescription( null );
+					else if ( ( embed.data.description?.length ?? 0 ) > msg.embedLimits.sectionDescLength ) embed.setDescription( limitLength(description, msg.embedLimits.sectionDescLength, 50) );
 				}
 			}, error => {
 				console.log( '- Error while getting the task transactions: ' + error );
@@ -102,7 +105,7 @@ export default function phabricator_task(lang, msg, wiki, link, spoiler = '', no
 	}, error => {
 		console.log( '- Error while getting the Phabricator task: ' + error );
 		return {
-			reaction: 'error',
+			reaction: WB_EMOJI.error,
 			message: spoiler + ( noEmbed ? '<' : ' ' ) + link + ( noEmbed ? '>' : ' ' ) + spoiler
 		};
 	} );

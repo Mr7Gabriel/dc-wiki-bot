@@ -15,7 +15,7 @@ import extract_desc from '../../util/extract_desc.js';
  * @param {[String, String]} [namespace] - The namespace to get a random page of.
  * @param {URLSearchParams} [querystring] - The querystring for the link.
  * @param {String} [fragment] - The section for the link.
- * @returns {Promise<{reaction?: String, message?: String|import('discord.js').MessageOptions}>}
+ * @returns {Promise<{reaction?: WB_EMOJI, message?: String|import('discord.js').MessageOptions}>}
  */
 export default function gamepedia_random(lang, msg, wiki, reaction, spoiler, noEmbed, namespace, querystring = new URLSearchParams(), fragment = '') {
 	var uselang = lang.lang;
@@ -37,12 +37,12 @@ export default function gamepedia_random(lang, msg, wiki, reaction, spoiler, noE
 		if ( response.statusCode !== 200 || !body || body.batchcomplete === undefined || !body.query || !body.query.general ) {
 			if ( wiki.noWiki(response.url, response.statusCode) ) {
 				console.log( '- This wiki doesn\'t exist!' );
-				return {reaction: 'nowiki'};
+				return {reaction: WB_EMOJI.nowiki};
 			}
 			else {
 				console.log( '- ' + response.statusCode + ': Error while getting the search results: ' + ( body && body.error && body.error.info ) );
 				return {
-					reaction: 'error',
+					reaction: WB_EMOJI.error,
 					message: spoiler + '<' + wiki.toLink('Special:Random', querystring, fragment) + '>' + spoiler
 				};
 			}
@@ -65,9 +65,9 @@ export default function gamepedia_random(lang, msg, wiki, reaction, spoiler, noE
 					if ( displaytitle.length > 250 ) displaytitle = displaytitle.substring(0, 250) + '\u2026';
 					if ( displaytitle.trim() ) embed.setTitle( displaytitle );
 				}
-				if ( body.query.allmessages?.[1]?.['*']?.trim?.() ) {
+				if ( body.query.allmessages?.[1]?.['*']?.trim?.() && msg.embedLimits.descLength ) {
 					var description = toMarkdown(body.query.allmessages[1]['*'], wiki, title, true);
-					if ( description.length > 1000 ) description = description.substring(0, 1000) + '\u2026';
+					if ( description.length > msg.embedLimits.descLength ) description = description.substring(0, msg.embedLimits.descLength) + '\u2026';
 					embed.setDescription( description );
 				}
 			}
@@ -86,15 +86,15 @@ export default function gamepedia_random(lang, msg, wiki, reaction, spoiler, noE
 			if ( displaytitle.trim() ) embed.setTitle( displaytitle );
 		}
 		if ( querypage.extract ) {
-			var extract = extract_desc(querypage.extract, fragment);
+			var extract = extract_desc(querypage.extract, msg.embedLimits, fragment);
 			embed.backupDescription = extract[0];
 			if ( extract[1].length && extract[2].length ) {
 				embed.backupField = {name: extract[1], value: extract[2]};
 			}
 		}
-		if ( querypage.pageprops && querypage.pageprops.description ) {
+		if ( querypage.pageprops && querypage.pageprops.description && msg.embedLimits.descLength ) {
 			var description = htmlToDiscord( querypage.pageprops.description );
-			if ( description.length > 1000 ) description = description.substring(0, 1000) + '\u2026';
+			if ( description.length > msg.embedLimits.descLength ) description = description.substring(0, msg.embedLimits.descLength) + '\u2026';
 			embed.backupDescription = description;
 		}
 		try {
@@ -144,12 +144,12 @@ export default function gamepedia_random(lang, msg, wiki, reaction, spoiler, noE
 	}, error => {
 		if ( wiki.noWiki(error.message) ) {
 			console.log( '- This wiki doesn\'t exist!' );
-			return {reaction: 'nowiki'};
+			return {reaction: WB_EMOJI.nowiki};
 		}
 		else {
 			console.log( '- Error while getting the search results: ' + error );
 			return {
-				reaction: 'error',
+				reaction: WB_EMOJI.error,
 				message: spoiler + '<' + wiki.toLink('Special:Random', querystring, fragment) + '>' + spoiler
 			};
 		}

@@ -9,6 +9,32 @@ inspect.defaultOptions = {compact: false, breakLength: Infinity};
 globalThis.isDebug = ( process.argv[2] === 'debug' );
 
 /**
+ * Custom emojis.
+ * @enum {String}
+ * @global
+ */
+globalThis.WB_EMOJI = {
+	/** @type {'<:error:440871715938238494>'} */
+	error: '<:error:440871715938238494>',
+	/** @type {'<a:loading:641343250661113886>'} */
+	loading: '<a:loading:641343250661113886>',
+	/** @type {'<:unknown_wiki:505884572001763348>'} */
+	nowiki: '<:unknown_wiki:505884572001763348>',
+	/** @type {'<:wikibot:1042228093940682842>'} */
+	wikibot: '<:wikibot:1042228093940682842>',
+	/** @type {'🔂'} */ again: '🔂',
+	/** @type {'🗑️'} */ delete: '🗑️',
+	/** @type {'✅'} */ done: '✅',
+	/** @type {'🔗'} */ link: '🔗',
+	/** @type {'📩'} */ message: '📩',
+	/** @type {'❌'} */ no: '❌',
+	/** @type {'❓'} */ question: '❓',
+	/** @type {'🤷'} */ shrug: '🤷',
+	/** @type {'⏳'} */ waiting: '⏳',
+	/** @type {'⚠️'} */ warning: '⚠️'
+};
+
+/**
  * Prefix of guilds with patreon features enabled.
  * @type {Map<String, String>}
  * @global

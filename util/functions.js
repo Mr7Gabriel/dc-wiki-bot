@@ -41,15 +41,18 @@ function getEmbedLength(embed) {
  * Parse infobox content
  * @param {Object} infobox - The content of the infobox.
  * @param {import('discord.js').EmbedBuilder} embed - The message embed.
+ * @param {Object} [embedLimits] - The embed limits.
+ * @param {Number} [embedLimits.fieldCount] - The field count.
+ * @param {Number} [embedLimits.fieldLength] - The field length.
  * @param {String} [thumbnail] - The default thumbnail for the wiki.
  * @param {String} [pagelink] - The article path for relative links.
  * @returns {import('discord.js').EmbedBuilder?}
  */
-function parse_infobox(infobox, embed, thumbnail, pagelink = '') {
-	if ( !infobox || ( embed.data.fields?.length ?? 0 ) >= 25 || getEmbedLength(embed) > 5400 ) return;
+function parse_infobox(infobox, embed, embedLimits = {fieldCount: 25, fieldLength: 500}, thumbnail, pagelink = '') {
+	if ( !infobox || ( embed.data.fields?.length ?? 0 ) >= embedLimits.fieldCount || getEmbedLength(embed) > ( 5_870 - embedLimits.fieldLength ) ) return;
 	if ( infobox.parser_tag_version === 2 || infobox.parser_tag_version === 5 ) {
 		infobox.data.forEach( group => {
-			parse_infobox(group, embed, thumbnail, pagelink);
+			parse_infobox(group, embed, embedLimits, thumbnail, pagelink);
 		} );
 		embed.data.fields = embed.data.fields?.filter( (field, i, fields) => {
 			// remove header followed by header
@@ -80,14 +83,14 @@ function parse_infobox(infobox, embed, thumbnail, pagelink = '') {
 				embed.brokenInfobox = true;
 			}
 			if ( label.length > 100 ) label = label.substring(0, 100) + '\u2026';
-			if ( value.length > 500 ) value = limitLength(value, 500, 250);
+			if ( value.length > embedLimits.fieldLength ) value = limitLength(value, embedLimits.fieldLength, 20);
 			if ( label && value ) embed.addFields( {name: label, value, inline: true} );
 			break;
 		}
 		case 'panel': {
 			let fieldsLength = embed.data.fields?.length ?? 0;
 			infobox.data.value.forEach( group => {
-				parse_infobox(group, embed, thumbnail, pagelink);
+				parse_infobox(group, embed, embedLimits, thumbnail, pagelink);
 			} );
 			embed.data.fields = embed.data.fields?.filter( (field, i, fields) => {
 				if ( i < fieldsLength ) return true;
@@ -110,7 +113,7 @@ function parse_infobox(infobox, embed, thumbnail, pagelink = '') {
 		}
 		case 'group':
 			infobox.data.value.forEach( group => {
-				parse_infobox(group, embed, thumbnail, pagelink);
+				parse_infobox(group, embed, embedLimits, thumbnail, pagelink);
 			} );
 			break;
 		case 'header': {
@@ -522,7 +525,7 @@ function escapeRegExp(text = '') {
  * @param {Number} [maxExtra] - The maximal allowed character limit if needed.
  * @returns {String}
  */
-function limitLength(text = '', limit = 1000, maxExtra = 20) {
+function limitLength(text = '', limit = 1_000, maxExtra = 20) {
 	var suffix = '\u2026';
 	var link = null;
 	var regex = /(?<!\\)\[((?:[^\[\]]|\\[\[\]])*?[^\\])\]\(<?(?:[^()]|\\[()])+?[^\\]>?\)/g;
@@ -615,7 +618,7 @@ function breakOnTimeoutPause(msg, ignorePause = false) {
  */
 function allowDelete(msg, author) {
 	msg?.awaitReactions?.( {
-		filter: (reaction, user) => ( reaction.emoji.name === '🗑️' && user.id === author ),
+		filter: (reaction, user) => ( reaction.emoji.name === WB_EMOJI.delete && user.id === author ),
 		max: 1, time: 300_000
 	} ).then( reaction => {
 		if ( reaction.size ) msg.delete().catch(log_error);

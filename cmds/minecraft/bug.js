@@ -12,7 +12,7 @@ import { got, getEmbedLength, escapeFormatting, limitLength } from '../../util/f
  * @param {import('discord.js').MessageReaction} reaction - The reaction on the message.
  * @param {String} spoiler - If the response is in a spoiler.
  * @param {Boolean} noEmbed - If the response should be without an embed.
- * @returns {Promise<{reaction?: String, message?: String|import('discord.js').MessageOptions}>}
+ * @returns {Promise<{reaction?: WB_EMOJI, message?: String|import('discord.js').MessageOptions}>}
  */
 function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noEmbed) {
 	var invoke = args[0];
@@ -29,23 +29,23 @@ function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noE
 			if ( response.statusCode !== 200 || !body || body['status-code'] === 404 || body.errorMessages || body.errors ) {
 				if ( body && body.errorMessages ) {
 					if ( body.errorMessages.includes( 'Issue Does Not Exist' ) ) {
-						return {reaction: '🤷'};
+						return {reaction: WB_EMOJI.shrug};
 					}
 					if ( body.errorMessages.includes( 'You do not have the permission to see the specified issue.' ) ) {
 						return {message: spoiler + lang.get('minecraft.private') + '\n<' + baseBrowseUrl + invoke + '>' + spoiler};
 					}
 					console.log( '- ' + ( response && response.statusCode ) + ': Error while getting the issue: ' + body.errorMessages.join(' - ') );
-					return {reaction: 'error'};
+					return {reaction: WB_EMOJI.error};
 				}
 				console.log( '- ' + response.statusCode + ': Error while getting the issue: ' + ( body && body.message ) );
-				if ( body && body['status-code'] === 404 ) return {reaction: 'error'};
+				if ( body && body['status-code'] === 404 ) return {reaction: WB_EMOJI.error};
 				return {
-					reaction: 'error',
+					reaction: WB_EMOJI.error,
 					message: spoiler + '<' + baseBrowseUrl + invoke + '>' + spoiler
 				};
 			}
 			if ( !body.fields ) {
-				return {reaction: 'error'};
+				return {reaction: WB_EMOJI.error};
 			}
 			var statusList = lang.get('minecraft.status');
 			var summary = escapeFormatting(body.fields.summary);
@@ -54,7 +54,8 @@ function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noE
 			/** @type {EmbedBuilder} */
 			var embed = null;
 			if ( !noEmbed ) {
-				embed = new EmbedBuilder().setAuthor( {name: 'Mojira'} ).setTitle( summary ).setURL( baseBrowseUrl + body.key ).setDescription( limitLength(description, 2000, 20) );
+				embed = new EmbedBuilder().setAuthor( {name: 'Mojira'} ).setTitle( summary ).setURL( baseBrowseUrl + body.key );
+				if ( msg.embedLimits.descLength ) embed.setDescription( limitLength(description, msg.embedLimits.descLength, 20) );
 				var links = body.fields.issuelinks.filter( link => link.outwardIssue || ( link.inwardIssue && link.type.name !== 'Duplicate' ) );
 				if ( links.length ) {
 					var linkList = lang.get('minecraft.issue_link');
@@ -65,7 +66,7 @@ function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noE
 						var name = ( linkList?.[link.type.name]?.[ward]?.replaceAllSafe( '$1', issue.key ) || link.type[ward] + ' ' + issue.key );
 						var status = issue.fields.status.name;
 						var value = ( statusList?.[status] || status ) + ': [' + escapeFormatting(issue.fields.summary) + '](<' + baseBrowseUrl + issue.key + '>)';
-						if ( ( embed.data.fields?.length ?? 0 ) < 25 && ( getEmbedLength(embed) + name.length + value.length ) < 6000 ) embed.addFields( {name, value} );
+						if ( ( embed.data.fields?.length ?? 0 ) < msg.embedLimits.fieldCount && ( getEmbedLength(embed) + name.length + value.length ) < 6000 ) embed.addFields( {name, value} );
 						else extralinks.push({name,value,inline:false});
 					} );
 					if ( extralinks.length ) embed.setFooter( {text: lang.get('minecraft.more', extralinks.length.toLocaleString(lang.get('dateformat')), extralinks.length)} );
@@ -83,7 +84,7 @@ function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noE
 		}, error => {
 			console.log( '- Error while getting the issue: ' + error );
 			return {
-				reaction: 'error',
+				reaction: WB_EMOJI.error,
 				message: spoiler + '<' + baseBrowseUrl + invoke + '>' + spoiler
 			};
 		} );
@@ -93,7 +94,7 @@ function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noE
 			jql: 'fixVersion="' + args.join(' ').replace( /["\\]/g, '\\$&' ) + '" order by key'
 		});
 		var uri = 'https://bugs.mojang.com/issues/?' + jql;
-		return got.get( 'https://bugs.mojang.com/rest/api/2/search?fields=summary,resolution,status&' + jql + '&maxResults=25', {
+		return got.get( 'https://bugs.mojang.com/rest/api/2/search?fields=summary,resolution,status&' + jql + '&maxResults=' + msg.embedLimits.fieldCount, {
 			context: {
 				guildId: msg.guildId
 			}
@@ -102,20 +103,20 @@ function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noE
 			if ( response.statusCode !== 200 || !body || body['status-code'] === 404 || body.errorMessages || body.errors ) {
 				if ( body && body.errorMessages ) {
 					if ( body.errorMessages.includes( 'The value \'' + args.join(' ') + '\' does not exist for the field \'fixVersion\'.' ) ) {
-						return {reaction: '🤷'};
+						return {reaction: WB_EMOJI.shrug};
 					}
 					console.log( '- ' + response.statusCode + ': Error while getting the issues: ' + body.errorMessages.join(' - ') );
-					return {reaction: 'error'};
+					return {reaction: WB_EMOJI.error};
 				}
 				console.log( '- ' + response.statusCode + ': Error while getting the issues: ' + ( body && body.message ) );
-				if ( body && body['status-code'] === 404 ) return {reaction: 'error'};
+				if ( body && body['status-code'] === 404 ) return {reaction: WB_EMOJI.error};
 				return {
-					reaction: 'error',
+					reaction: WB_EMOJI.error,
 					message: spoiler + '<' + uri + '>' + spoiler
 				};
 			}
 			if ( !body.issues ) {
-				return {reaction: 'error'};
+				return {reaction: WB_EMOJI.error};
 			}
 			var embed = null;
 			if ( !noEmbed ) {
@@ -127,8 +128,8 @@ function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noE
 						var value = ( statusList?.[status] || status ) + ': [' + escapeFormatting(bug.fields.summary) + '](<https://bugs.mojang.com/browse/' + bug.key + '>)';
 						embed.addFields( {name: bug.key, value} );
 					} );
-					if ( body.total > 25 ) {
-						var extrabugs = body.total - 25;
+					if ( body.total > msg.embedLimits.fieldCount ) {
+						var extrabugs = body.total - msg.embedLimits.fieldCount;
 						embed.setFooter( {text: lang.get('minecraft.more', extrabugs.toLocaleString(lang.get('dateformat')), extrabugs)} );
 					}
 				}
@@ -141,7 +142,7 @@ function minecraft_bug(lang, msg, wiki, args, title, cmd, reaction, spoiler, noE
 		}, error => {
 			console.log( '- Error while getting the issues: ' + error );
 			return {
-				reaction: 'error',
+				reaction: WB_EMOJI.error,
 				message: spoiler + '<' + uri + '>' + spoiler
 			};
 		} );

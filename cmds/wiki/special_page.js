@@ -154,7 +154,7 @@ const descriptions = {
  * @param {import('discord.js').MessageReaction} reaction - The reaction on the message.
  * @param {String} spoiler - If the response is in a spoiler.
  * @param {Boolean} noEmbed - If the response should be without an embed.
- * @returns {Promise<{reaction?: String, message?: String|import('discord.js').MessageOptions}>}
+ * @returns {Promise<{reaction?: WB_EMOJI, message?: String|import('discord.js').MessageOptions}>}
  */
 export default function special_page(lang, msg, {title, uselang = lang.lang}, specialpage, query, wiki, querystring, fragment, reaction, spoiler, noEmbed) {
 	var pagelink = wiki.toLink(title, querystring, fragment);
@@ -195,13 +195,13 @@ export default function special_page(lang, msg, {title, uselang = lang.lang}, sp
 			if ( displaytitle.length > 250 ) displaytitle = displaytitle.substring(0, 250) + '\u2026';
 			if ( displaytitle.trim() ) embed.setTitle( displaytitle );
 		}
-		if ( body.query.allmessages?.[1]?.['*']?.trim?.() ) {
+		if ( body.query.allmessages?.[1]?.['*']?.trim?.() && msg.embedLimits.descLength ) {
 			var description = toMarkdown(body.query.allmessages[1]['*'], wiki, title, true);
-			if ( description.length > 1000 ) description = description.substring(0, 1000) + '\u2026';
+			if ( description.length > msg.embedLimits.descLength ) description = description.substring(0, msg.embedLimits.descLength) + '\u2026';
 			embed.setDescription( description );
 		}
-		if ( msg.inGuild() && patreonGuildsPrefix.has(msg.guildId) && querypages.hasOwnProperty(specialpage) ) {
-			var text = splitMessage( querypages[specialpage][1](body.query, wiki, lang), {maxLength:1000} )[0];
+		if ( msg.inGuild() && patreonGuildsPrefix.has(msg.guildId) && querypages.hasOwnProperty(specialpage) && msg.embedLimits.fieldLength ) {
+			var text = splitMessage( querypages[specialpage][1](body.query, wiki, lang), {maxLength: msg.embedLimits.fieldLength} )[0];
 			embed.addFields( {name: lang.get('search.special'), value: ( text || lang.get('search.empty') )} );
 			if ( body.query.querypage?.cached !== undefined ) {
 				embed.setFooter( {text: lang.get('search.cached')} ).setTimestamp(new Date(body.query.querypage.cachedtimestamp));

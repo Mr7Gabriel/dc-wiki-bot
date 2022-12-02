@@ -14,13 +14,13 @@ const {limit: {search: searchLimit}} = require('../../util/default.json');
  * @param {import('discord.js').MessageReaction} reaction - The reaction on the message.
  * @param {String} spoiler - If the response is in a spoiler.
  * @param {Boolean} noEmbed - If the response should be without an embed.
- * @returns {Promise<{reaction?: String, message?: String|import('discord.js').MessageOptions}>}
+ * @returns {Promise<{reaction?: WB_EMOJI, message?: String|import('discord.js').MessageOptions}>}
  */
 export default function gamepedia_search(lang, msg, searchterm, wiki, query, reaction, spoiler, noEmbed) {
 	if ( searchterm.length > 250 ) {
 		searchterm = searchterm.substring(0, 250);
-		msg?.fetchReply?.().then( message => message?.reactEmoji?.('warning'), log_error );
-		msg?.reactEmoji?.('warning');
+		msg?.fetchReply?.().then( message => message?.reactEmoji?.(WB_EMOJI.warning), log_error );
+		msg?.reactEmoji?.(WB_EMOJI.warning);
 	}
 	if ( !searchterm.trim() ) return this.special_page(lang, msg, {title: 'Special:Search'}, 'search', query, wiki, new URLSearchParams(), '', reaction, spoiler, noEmbed);
 	var pagelink = wiki.toLink('Special:Search', {search:searchterm,fulltext:1});
@@ -150,7 +150,7 @@ export default function gamepedia_search(lang, msg, searchterm, wiki, query, rea
 			if ( footer ) embed.setFooter( {text: footer} );
 		}
 		else {
-			if ( description.length ) resultText += '\n' + splitMessage( description.join('\n'), {maxLength: 1995 - resultText.length - footer.length} )[0];
+			if ( description.length ) resultText += '\n' + splitMessage( description.join('\n'), {maxLength: 1990 - resultText.length - footer.length} )[0];
 			if ( footer ) resultText += '\n' + footer;
 		}
 	}, error => {

@@ -4,11 +4,13 @@ import { escapeFormatting } from './functions.js';
 /**
  * Change edit diffs to markdown text.
  * @param {String} html - The edit diff in HTML.
+ * @param {Number} sectionLength - The maximal length of the edit diff.
  * @param {String} more - The localized string for more content.
  * @param {String} whitespace - The localized string for only whitespace.
  * @returns {[String, String]}
  */
-export default function diffParser(html, more, whitespace) {
+export default function diffParser(html, sectionLength, more, whitespace) {
+	if ( !sectionLength ) return ['', ''];
 	var current_tag = '';
 	var last_ins = null;
 	var last_del = null;
@@ -19,15 +21,15 @@ export default function diffParser(html, more, whitespace) {
 	var del_length = more.length;
 	var parser = new HTMLParser( {
 		onopentag: (tagname, attribs) => {
-			if ( ins_length > 1000 && del_length > 1000 ) parser.pause(); // Prevent the parser from running too long
+			if ( ins_length > sectionLength && del_length > sectionLength ) parser.pause(); // Prevent the parser from running too long
 			if ( tagname === 'ins' || tagname == 'del' ) current_tag = tagname;
 			if ( tagname === 'td' ) {
 				let classes = ( attribs.class?.split(' ') || [] );
-				if ( classes.includes( 'diff-addedline' ) && ins_length <= 1000 ) {
+				if ( classes.includes( 'diff-addedline' ) && ins_length <= sectionLength ) {
 					current_tag = 'tda';
 					last_ins = '';
 				}
-				if ( classes.includes( 'diff-deletedline' ) && del_length <= 1000 ) {
+				if ( classes.includes( 'diff-deletedline' ) && del_length <= sectionLength ) {
 					current_tag = 'tdd';
 					last_del = '';
 				}
@@ -35,21 +37,21 @@ export default function diffParser(html, more, whitespace) {
 			}
 		},
 		ontext: (htmltext) => {
-			if ( current_tag === 'ins' && ins_length <= 1000 ) {
+			if ( current_tag === 'ins' && ins_length <= sectionLength ) {
 				ins_length += ( '**' + escapeFormatting(htmltext) + '**' ).length;
-				if ( ins_length <= 1000 ) last_ins += '**' + escapeFormatting(htmltext) + '**';
+				if ( ins_length <= sectionLength ) last_ins += '**' + escapeFormatting(htmltext) + '**';
 			}
-			if ( current_tag === 'del' && del_length <= 1000 ) {
+			if ( current_tag === 'del' && del_length <= sectionLength ) {
 				del_length += ( '~~' + escapeFormatting(htmltext) + '~~' ).length;
-				if ( del_length <= 1000 ) last_del += '~~' + escapeFormatting(htmltext) + '~~';
+				if ( del_length <= sectionLength ) last_del += '~~' + escapeFormatting(htmltext) + '~~';
 			}
-			if ( current_tag === 'tda' && ins_length <= 1000 ) {
+			if ( current_tag === 'tda' && ins_length <= sectionLength ) {
 				ins_length += escapeFormatting(htmltext).length;
-				if ( ins_length <= 1000 ) last_ins += escapeFormatting(htmltext);
+				if ( ins_length <= sectionLength ) last_ins += escapeFormatting(htmltext);
 			}
-			if ( current_tag === 'tdd' && del_length <= 1000 ) {
+			if ( current_tag === 'tdd' && del_length <= sectionLength ) {
 				del_length += escapeFormatting(htmltext).length;
-				if ( del_length <= 1000 ) last_del += escapeFormatting(htmltext);
+				if ( del_length <= sectionLength ) last_del += escapeFormatting(htmltext);
 			}
 		},
 		onclosetag: (tagname) => {
@@ -65,7 +67,7 @@ export default function diffParser(html, more, whitespace) {
 						last_ins = '**' + last_ins + '**';
 					}
 					small_prev_ins += '\n' + last_ins;
-					if ( ins_length > 1000 ) small_prev_ins += more;
+					if ( ins_length > sectionLength ) small_prev_ins += more;
 					last_ins = null;
 				}
 				if ( last_del !== null ) {
@@ -76,7 +78,7 @@ export default function diffParser(html, more, whitespace) {
 						last_del = '~~' + last_del + '~~';
 					}
 					small_prev_del += '\n' + last_del;
-					if ( del_length > 1000 ) small_prev_del += more;
+					if ( del_length > sectionLength ) small_prev_del += more;
 					last_del = null;
 				}
 				empty = false;

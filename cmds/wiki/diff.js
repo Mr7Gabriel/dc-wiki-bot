@@ -1,6 +1,6 @@
 import { EmbedBuilder } from 'discord.js';
 import logging from '../../util/logging.js';
-import { got, canUseMaskedLinks, htmlToPlain, htmlToDiscord, escapeFormatting } from '../../util/functions.js';
+import { got, canUseMaskedLinks, htmlToPlain, htmlToDiscord, escapeFormatting, splitMessage } from '../../util/functions.js';
 import diffParser from '../../util/edit_diff.js';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -15,7 +15,7 @@ const {timeoptions} = require('../../util/default.json');
  * @param {String} spoiler - If the response is in a spoiler.
  * @param {Boolean} noEmbed - If the response should be without an embed.
  * @param {EmbedBuilder} [embed] - The embed for the page.
- * @returns {Promise<{reaction?: String, message?: String|import('discord.js').MessageOptions}>}
+ * @returns {Promise<{reaction?: WB_EMOJI, message?: String|import('discord.js').MessageOptions}>}
  */
 export default function gamepedia_diff(lang, msg, args, wiki, spoiler, noEmbed, embed) {
 	if ( !args[0] ) {
@@ -101,7 +101,7 @@ export default function gamepedia_diff(lang, msg, args, wiki, spoiler, noEmbed, 
 			}
 			if ( wiki.noWiki(response.url, response.statusCode) ) {
 				console.log( '- This wiki doesn\'t exist!' );
-				return {reaction: 'nowiki'};
+				return {reaction: WB_EMOJI.nowiki};
 			}
 			if ( noerror ) {
 				return {
@@ -114,12 +114,12 @@ export default function gamepedia_diff(lang, msg, args, wiki, spoiler, noEmbed, 
 			}
 			console.log( '- ' + response.statusCode + ': Error while getting the search results: ' + ( body && body.error && body.error.info ) );
 			return {
-				reaction: 'error',
+				reaction: WB_EMOJI.error,
 				message: spoiler + '<' + wiki.toLink(title, ( title ? {diff} : {diff,oldid:revision} )) + '>' + spoiler
 			};
 		}
 		if ( body.compare.fromarchive !== undefined || body.compare.toarchive !== undefined ) {
-			return {reaction: 'error'};
+			return {reaction: WB_EMOJI.error};
 		}
 		var argids = [];
 		var ids = body.compare;
@@ -131,7 +131,7 @@ export default function gamepedia_diff(lang, msg, args, wiki, spoiler, noEmbed, 
 			if ( ids.fromtexthidden === undefined && ids.totexthidden === undefined && ids['*'] !== undefined ) {
 				let more = '\n__' + lang.get('diff.info.more') + '__';
 				let whitespace = '__' + lang.get('diff.info.whitespace') + '__';
-				compare = diffParser( ids['*'], more, whitespace );
+				compare = diffParser( ids['*'], msg.embedLimits.sectionLength, more, whitespace );
 			}
 			else if ( ids.fromtexthidden !== undefined ) compare[0] = '__' + lang.get('diff.hidden') + '__';
 			else if ( ids.totexthidden !== undefined ) compare[1] = '__' + lang.get('diff.hidden') + '__';
@@ -140,12 +140,12 @@ export default function gamepedia_diff(lang, msg, args, wiki, spoiler, noEmbed, 
 	}, error => {
 		if ( wiki.noWiki(error.message) ) {
 			console.log( '- This wiki doesn\'t exist!' );
-			return {reaction: 'nowiki'};
+			return {reaction: WB_EMOJI.nowiki};
 		}
 		else {
 			console.log( '- Error while getting the search results: ' + error );
 			return {
-				reaction: 'error',
+				reaction: WB_EMOJI.error,
 				message: spoiler + '<' + wiki.toLink(title, 'diff=' + relative + ( title ? '' : '&oldid=' + revision )) + '>' + spoiler
 			};
 		}
@@ -162,10 +162,10 @@ export default function gamepedia_diff(lang, msg, args, wiki, spoiler, noEmbed, 
  * @param {String} spoiler - If the response is in a spoiler.
  * @param {Boolean} noEmbed - If the response should be without an embed.
  * @param {String[]} [compare] - The edit difference.
- * @returns {Promise<{reaction?: String, message?: String|import('discord.js').MessageOptions}>}
+ * @returns {Promise<{reaction?: WB_EMOJI, message?: String|import('discord.js').MessageOptions}>}
  */
 function gamepedia_diff_send(lang, msg, args, wiki, spoiler, noEmbed, compare) {
-	return got.get( wiki + 'api.php?uselang=' + lang.lang + '&action=query&meta=siteinfo&siprop=general&list=tags&tglimit=500&tgprop=displayname&prop=revisions&rvslots=main&rvprop=ids|timestamp|flags|user|size|parsedcomment|tags' + ( args.length === 1 || args[0] === args[1] ? '|content' : '' ) + '&revids=' + args.join('|') + '&format=json', {
+	return got.get( wiki + 'api.php?uselang=' + lang.lang + '&action=query&meta=siteinfo&siprop=general&list=tags&tglimit=max&tgprop=displayname&prop=revisions&rvslots=main&rvprop=ids|timestamp|flags|user|size|parsedcomment|tags' + ( args.length === 1 || args[0] === args[1] ? '|content' : '' ) + '&revids=' + args.join('|') + '&format=json', {
 		context: {
 			guildId: msg.guildId
 		}
@@ -175,12 +175,12 @@ function gamepedia_diff_send(lang, msg, args, wiki, spoiler, noEmbed, compare) {
 		if ( response.statusCode !== 200 || !body || body.batchcomplete === undefined || !body.query ) {
 			if ( wiki.noWiki(response.url, response.statusCode) ) {
 				console.log( '- This wiki doesn\'t exist!' );
-				return {reaction: 'nowiki'};
+				return {reaction: WB_EMOJI.nowiki};
 			}
 			else {
 				console.log( '- ' + response.statusCode + ': Error while getting the search results: ' + ( body && body.error && body.error.info ) );
 				return {
-					reaction: 'error',
+					reaction: WB_EMOJI.error,
 					message: spoiler + '<' + wiki.toLink('Special:Diff/' + ( args[1] ? args[1] + '/' : '' ) + args[0]) + '>' + spoiler
 				};
 			}
@@ -242,7 +242,7 @@ function gamepedia_diff_send(lang, msg, args, wiki, spoiler, noEmbed, compare) {
 					)
 				)
 			];
-			if ( revisions[0].tags.length ) var tags = [lang.get('diff.info.tags'), body.query.tags.filter( tag => tag.displayname && revisions[0].tags.includes( tag.name ) ).map( tag => tag.displayname || tag.name ).join(', ')];
+			if ( revisions[0].tags.length && msg.embedLimits.fieldLength ) var tags = [lang.get('diff.info.tags'), splitMessage( body.query.tags.filter( tag => tag.displayname && revisions[0].tags.includes( tag.name ) ).map( tag => tag.displayname || tag.name ).join(', '), {char: ', ', maxLength: msg.embedLimits.fieldLength} )[0]];
 			
 			var pagelink = wiki.toLink(title, {diff,oldid});
 			var text = '<' + pagelink + '>';
@@ -254,70 +254,72 @@ function gamepedia_diff_send(lang, msg, args, wiki, spoiler, noEmbed, compare) {
 					{name: comment[0], value: comment[1]}
 				]).setTimestamp( editDate );
 				
-				var more = '\n__' + lang.get('diff.info.more') + '__';
-				var whitespace = '__' + lang.get('diff.info.whitespace') + '__';
-				if ( !compare && oldid ) return got.get( wiki + 'api.php?action=compare&prop=diff&fromrev=' + oldid + '&torev=' + diff + '&format=json', {
-					context: {
-						guildId: msg.guildId
-					}
-				} ).then( cpresponse => {
-					var cpbody = cpresponse.body;
-					if ( cpbody && cpbody.warnings ) log_warning(cpbody.warnings);
-					if ( cpresponse.statusCode !== 200 || !cpbody || !cpbody.compare || cpbody.compare['*'] === undefined ) {
-						var noerror = false;
-						if ( cpbody && cpbody.error ) {
-							switch ( cpbody.error.code ) {
-								case 'nosuchrevid':
-									noerror = true;
-									break;
-								case 'missingcontent':
-									noerror = true;
-									break;
-								default:
-									noerror = false;
+				if ( msg.embedLimits.sectionLength ) {
+					var more = '\n__' + lang.get('diff.info.more') + '__';
+					var whitespace = '__' + lang.get('diff.info.whitespace') + '__';
+					if ( !compare && oldid ) return got.get( wiki + 'api.php?action=compare&prop=diff&fromrev=' + oldid + '&torev=' + diff + '&format=json', {
+						context: {
+							guildId: msg.guildId
+						}
+					} ).then( cpresponse => {
+						var cpbody = cpresponse.body;
+						if ( cpbody && cpbody.warnings ) log_warning(cpbody.warnings);
+						if ( cpresponse.statusCode !== 200 || !cpbody || !cpbody.compare || cpbody.compare['*'] === undefined ) {
+							var noerror = false;
+							if ( cpbody && cpbody.error ) {
+								switch ( cpbody.error.code ) {
+									case 'nosuchrevid':
+										noerror = true;
+										break;
+									case 'missingcontent':
+										noerror = true;
+										break;
+									default:
+										noerror = false;
+								}
+							}
+							if ( !noerror ) console.log( '- ' + cpresponse.statusCode + ': Error while getting the diff: ' + ( cpbody && cpbody.error && cpbody.error.info ) );
+						}
+						else if ( cpbody.compare.fromtexthidden === undefined && cpbody.compare.totexthidden === undefined && cpbody.compare.fromarchive === undefined && cpbody.compare.toarchive === undefined ) {
+							let edit_diff = diffParser( cpbody.compare['*'], msg.embedLimits.sectionLength, more, whitespace )
+							if ( edit_diff[0].length ) {
+								embed.addFields( {name: lang.get('diff.info.removed'), value: edit_diff[0], inline: true} );
+							}
+							if ( edit_diff[1].length ) {
+								embed.addFields( {name: lang.get('diff.info.added'), value: edit_diff[1], inline: true} );
 							}
 						}
-						if ( !noerror ) console.log( '- ' + cpresponse.statusCode + ': Error while getting the diff: ' + ( cpbody && cpbody.error && cpbody.error.info ) );
-					}
-					else if ( cpbody.compare.fromtexthidden === undefined && cpbody.compare.totexthidden === undefined && cpbody.compare.fromarchive === undefined && cpbody.compare.toarchive === undefined ) {
-						let edit_diff = diffParser( cpbody.compare['*'], more, whitespace )
-						if ( edit_diff[0].length ) {
-							embed.addFields( {name: lang.get('diff.info.removed'), value: edit_diff[0], inline: true} );
+						else if ( cpbody.compare.fromtexthidden !== undefined ) {
+							embed.addFields( {name: lang.get('diff.info.removed'), value: '__' + lang.get('diff.hidden') + '__', inline: true} );
 						}
-						if ( edit_diff[1].length ) {
-							embed.addFields( {name: lang.get('diff.info.added'), value: edit_diff[1], inline: true} );
+						else if ( cpbody.compare.totexthidden !== undefined ) {
+							embed.addFields( {name: lang.get('diff.info.added'), value: '__' + lang.get('diff.hidden') + '__', inline: true} );
 						}
+					}, error => {
+						console.log( '- Error while getting the diff: ' + error );
+					} ).then( () => {
+						if ( tags?.[1] ) embed.addFields( {name: tags[0], value: htmlToDiscord(tags[1], pagelink)} );
+						return {message: {
+							content: spoiler + text + spoiler,
+							embeds: [embed]
+						}};
+					} );
+					
+					if ( compare ) {
+						if ( compare[0].length ) embed.addFields( {name: lang.get('diff.info.removed'), value: compare[0], inline: true} );
+						if ( compare[1].length ) embed.addFields( {name: lang.get('diff.info.added'), value: compare[1], inline: true} );
 					}
-					else if ( cpbody.compare.fromtexthidden !== undefined ) {
-						embed.addFields( {name: lang.get('diff.info.removed'), value: '__' + lang.get('diff.hidden') + '__', inline: true} );
+					else if ( ( revisions[0]?.slots?.main || revisions[0] )['*'] ) {
+						var content = escapeFormatting( ( revisions[0]?.slots?.main || revisions[0] )['*'] );
+						if ( content.trim().length ) {
+							if ( content.length <= msg.embedLimits.sectionLength ) content = '**' + content + '**';
+							else {
+								content = content.substring(0, msg.embedLimits.sectionLength - more.length);
+								content = '**' + content.substring(0, content.lastIndexOf('\n')) + '**' + more;
+							}
+							embed.addFields( {name: lang.get('diff.info.added'), value: content, inline: true} );
+						} else embed.addFields( {name: lang.get('diff.info.added'), value: whitespace, value: true} );
 					}
-					else if ( cpbody.compare.totexthidden !== undefined ) {
-						embed.addFields( {name: lang.get('diff.info.added'), value: '__' + lang.get('diff.hidden') + '__', inline: true} );
-					}
-				}, error => {
-					console.log( '- Error while getting the diff: ' + error );
-				} ).then( () => {
-					if ( tags?.[1] ) embed.addFields( {name: tags[0], value: htmlToDiscord(tags[1], pagelink)} );
-					return {message: {
-						content: spoiler + text + spoiler,
-						embeds: [embed]
-					}};
-				} );
-				
-				if ( compare ) {
-					if ( compare[0].length ) embed.addFields( {name: lang.get('diff.info.removed'), value: compare[0], inline: true} );
-					if ( compare[1].length ) embed.addFields( {name: lang.get('diff.info.added'), value: compare[1], inline: true} );
-				}
-				else if ( ( revisions[0]?.slots?.main || revisions[0] )['*'] ) {
-					var content = escapeFormatting( ( revisions[0]?.slots?.main || revisions[0] )['*'] );
-					if ( content.trim().length ) {
-						if ( content.length <= 1000 ) content = '**' + content + '**';
-						else {
-							content = content.substring(0, 1000 - more.length);
-							content = '**' + content.substring(0, content.lastIndexOf('\n')) + '**' + more;
-						}
-						embed.addFields( {name: lang.get('diff.info.added'), value: content, inline: true} );
-					} else embed.addFields( {name: lang.get('diff.info.added'), value: whitespace, value: true} );
 				}
 				if ( tags?.[1] ) embed.addFields( {name: tags[0], value: htmlToDiscord(tags[1], pagelink)} );
 				
@@ -331,16 +333,16 @@ function gamepedia_diff_send(lang, msg, args, wiki, spoiler, noEmbed, compare) {
 			
 			return {message: spoiler + text + spoiler};
 		}
-		return {reaction: 'error'};
+		return {reaction: WB_EMOJI.error};
 	}, error => {
 		if ( wiki.noWiki(error.message) ) {
 			console.log( '- This wiki doesn\'t exist!' );
-			return {reaction: 'nowiki'};
+			return {reaction: WB_EMOJI.nowiki};
 		}
 		else {
 			console.log( '- Error while getting the search results: ' + error );
 			return {
-				reaction: 'error',
+				reaction: WB_EMOJI.error,
 				message: spoiler + '<' + wiki.toLink('Special:Diff/' + ( args[1] ? args[1] + '/' : '' ) + args[0]) + '>' + spoiler
 			};
 		}
